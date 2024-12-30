@@ -1,3 +1,5 @@
+
+
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -7,6 +9,7 @@ class cTNode{
 public:
     int freq;
     char symbol;
+    int numberOfBits;
     char * path;
     cTNode * pRight;
     cTNode * pLeft;
@@ -39,6 +42,7 @@ public:
     int freq;
     char symbol;
     char * path;
+    int numberOfBits;
     cNode * pNext;
     cTNode * pDown;
 
@@ -143,21 +147,24 @@ void sortOut (sortedLL &l){
 }
 list calcFreq (ifstream & file){
     list frequecyList;
-    string message;
-    while (getline(file, message)) {
-        for(int i = 0; i<message.length(); i++){
-            cNode * nodeWithFrequency = frequecyList.serachAndFind(message[i]);
+    file.seekg(0, file.end);
+    int h = file.tellg();
+    file.seekg(0, file.beg);
+    char ch;
+        for(int i = 0; i<h; i++){
+            file.read(&ch, 1);
+            cNode * nodeWithFrequency = frequecyList.serachAndFind(ch);
             if(nodeWithFrequency == NULL){
                 cNode * pnn = new cNode ();
                 pnn->pNext = NULL;
-                pnn->symbol = message[i];
+                pnn->symbol = ch;
                 pnn->freq = 1;
                 frequecyList.attach(pnn);
             } else {
                 nodeWithFrequency -> freq += 1;
             }
         }
-    }
+    
     return frequecyList;
 }
 sortedLL sortList(list l){
@@ -185,16 +192,18 @@ binaryTree makeTree(sortedLL & list){
         head->freq = list.head->freq + list.head->pNext->freq;
         head->symbol = '\0';
         head->pLeft = head->pRight = NULL;
+        
         if(list.head->pDown==NULL){
             tempDown = new cTNode();
             tempDown->pLeft = tempDown->pRight = NULL;
             tempDown->symbol = list.head->symbol;
             tempDown->freq = list.head->freq;
-
             head->pLeft = tempDown;
+            
         } else{
             head->pLeft = list.head->pDown;
         }
+        
         pTrav = list.head;
         list.head = pTrav->pNext;
         delete pTrav;
@@ -224,7 +233,7 @@ binaryTree makeTree(sortedLL & list){
     return huffmanTree;
 }
 
-void makeCode(cTNode * pTrav, char* path, char selection, list & huffmanCode){
+void makeCode(cTNode * pTrav, char* path, char selection, list & huffmanCode, int numberOfBits, int & minBits){
     int len;
     char * newPath;
     cNode * pnn;
@@ -250,13 +259,18 @@ void makeCode(cTNode * pTrav, char* path, char selection, list & huffmanCode){
             pnn->pNext = NULL;
             pnn->pDown = NULL;
             pnn->freq = pTrav->freq;
+            pnn->numberOfBits = numberOfBits;
             pnn->symbol = pTrav->symbol;
 
         }
     }
     
 
-    makeCode(pTrav->pLeft, path, '0', huffmanCode);
+    makeCode(pTrav->pLeft, path, '0', huffmanCode, numberOfBits+1, minBits);
+    
+    if(numberOfBits<minBits){
+        minBits = numberOfBits;
+    }
     if(pTrav->pLeft == NULL && pTrav->pRight == NULL){
          pnn = new cNode();
         int size=0;
@@ -273,9 +287,10 @@ void makeCode(cTNode * pTrav, char* path, char selection, list & huffmanCode){
         pnn->pDown = NULL;
         pnn->freq = pTrav->freq;
         pnn->symbol = pTrav->symbol;
+        pnn->numberOfBits = numberOfBits;
         huffmanCode.attach(pnn);
     }
-    makeCode(pTrav->pRight, path, '1', huffmanCode);
+    makeCode(pTrav->pRight, path, '1', huffmanCode, numberOfBits+1, minBits);
 }
 void encoding(ifstream& file, list &code, ofstream & encoded){
     int currBit = 7;
@@ -283,9 +298,14 @@ void encoding(ifstream& file, list &code, ofstream & encoded){
     char bitToEncode;
     cNode *currNode;
     string message;
-    while (getline(file, message)) {
-        for(int i=0; i<message.length(); i++){
-            currNode = code.serachAndFind(message[i]);
+    file.seekg(0, file.end);
+    int h = file.tellg();
+    file.seekg(0, file.beg);
+    char ch;
+    
+        for(int i=0; i<h; i++){
+            file.read(&ch, 1);
+            currNode = code.serachAndFind(ch);
             for(int j=0; currNode->path[j]!='\0';j++){
                 if(currBit==-1){
                     currBit=7;
@@ -304,7 +324,7 @@ void encoding(ifstream& file, list &code, ofstream & encoded){
                 encodedBit = encodedBit | (bitToEncode<<currBit);
                     currBit--;
             }
-        }
+        
     }
 }
 
@@ -313,10 +333,8 @@ cNode * getNode(char * encodedBits, int numBits, list & code){
     cNode * pTrav = code.head;
     char currentCodeBit;
     while (pTrav != NULL) {
-        int size=0;
-        for (size=0; pTrav->path[size]!='\0'; size++) {
-        }
-        if(size==numBits){
+
+        if(numBits==pTrav->numberOfBits){
             
             int flagDifferent = 0;
             for(int i=0; i<numBits;i++){
@@ -343,18 +361,21 @@ cNode * getNode(char * encodedBits, int numBits, list & code){
     
     return NULL;
 }
-void decoding(ifstream & file, list&code, ofstream & decoded){
+void decoding(ifstream & file, list&code, ofstream & decoded, int minBits){
     char * encodedByte = NULL;
     char m = 1;
-    string encodedMsg;
     int currBit = 0;
-    while (getline(file, encodedMsg)) {
-        for(int i=0; i<encodedMsg.length();i++){
-            
+    file.seekg(0, file.end);
+    int h = file.tellg();
+    file.seekg(0, file.beg);
+
+    char ch;
+        for(int i=0; i<h;i++){
+            file.read(&ch, 1);
             for (int bit=0; bit<8; bit++, currBit++) {
                 if(encodedByte != NULL){
                     char * newByteWithNewBit = new char [currBit+1];
-                    newByteWithNewBit[currBit] = ((m<<(7-bit)) & encodedMsg[i])<<bit;
+                    newByteWithNewBit[currBit] = ((m<<(7-bit)) & ch)<<bit;
 
                     for(int c=0; c<currBit; c++){
                         newByteWithNewBit[c] = encodedByte[c];
@@ -364,34 +385,55 @@ void decoding(ifstream & file, list&code, ofstream & decoded){
                     
                 } else {
                     encodedByte = new char;
-                    encodedByte[0] = ((m<<(7-bit)) & encodedMsg[i])<<bit;
+                    encodedByte[0] = ((m<<(7-bit)) & ch)<<bit;
                 }
+                cNode * nodeWithCode = NULL;
                 //if this byte is in the list
-                
-                cNode * nodeWithCode = getNode(encodedByte, currBit+1, code);
+                if(currBit>=minBits){
+                    nodeWithCode = getNode(encodedByte, currBit+1, code);
+                }
                 
                 if(nodeWithCode != NULL){
                     
+//                    decoed.write(&ch, 1);
                     decoded<<nodeWithCode->symbol;
                     currBit = -1;
                     delete encodedByte;
                     encodedByte = NULL;
                 }
                 
-            }
+            
         }
     }
 }
+
+void getCodeToFile(list & code, ofstream & outputFile){
+    cNode * pTrav = code.head;
+    while (pTrav != NULL) {
+        string path = "";
+        for(int i=0; pTrav->path[i]!= '\0';i++){
+            path+=pTrav->path[i];
+        }
+        
+        outputFile<<pTrav->symbol<<","<<pTrav->numberOfBits<<","<<path<<endl;
+            
+        
+        pTrav = pTrav->pNext;
+    }
+}
 int main() {
-    ofstream encodedImg;
-    ofstream decodedImg;
-    ifstream img ("img.jpg", ifstream::binary);
-    
+    ofstream encodedTxt;
+    encodedTxt.open("encodedImg.Txt");
+    ofstream codeFile;
+    codeFile.open("huffmanCode.txt");
+    ifstream decodedTxt;
+    ifstream img("img.bmp", ifstream::binary);
     list huffmanCode;
-    sortedLL sortedFrequeny = sortList(calcFreq(message));
-    message.close();
+    sortedLL sortedFrequeny = sortList(calcFreq(img));
+    int minBits = -99999999;
     binaryTree huffmanTree = makeTree(sortedFrequeny);
-    makeCode(huffmanTree.root, NULL, '\0', huffmanCode);
+    makeCode(huffmanTree.root, NULL, '\0', huffmanCode, 0, minBits);
+    
     /*
      cNode * pTrav = huffmanCode.head;
 
@@ -405,16 +447,8 @@ int main() {
         pTrav = pTrav->pNext;
     }
     */
-    message.open("original.txt");
-    encoding(message, huffmanCode, encodedFile);
-    encodedFile.close();
-    ifstream readEncodedFile;
-    readEncodedFile.open("encodedFile.txt");
     
-    decoding(readEncodedFile, huffmanCode, decodedFile);
-    
-    
-    message.close();
-    readEncodedFile.close();
-    decodedFile.close();
-}
+    encoding(img, huffmanCode, encodedTxt);
+    getCodeToFile(huffmanCode, codeFile);
+    codeFile.close();
+    }
