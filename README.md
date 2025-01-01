@@ -25,5 +25,3 @@
 
     - ### Decompression: Reconstructs the original file using the binary codes and the Huffman tree.
 
-- ## Installation
-
